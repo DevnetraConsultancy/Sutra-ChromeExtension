@@ -1,0 +1,25 @@
+{
+  "manifest_version": 3,
+  "name": "Sutra",
+  "version": "2.11.0",
+  "description": "A compact website launchpad with visible predefined groups, manually ordered bookmarks, and Chrome bookmark import.",
+  "author": "Devnetra Consultancy",
+  "offline_enabled": true,
+  "minimum_chrome_version": "102",
+  "permissions": [
+    "storage",
+    "favicon"
+  ],
+  "optional_permissions": [
+    "bookmarks"
+  ],
+  "chrome_url_overrides": {
+    "newtab": "dashboard.html"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}

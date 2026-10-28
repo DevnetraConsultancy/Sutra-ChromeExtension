@@ -1,0 +1,16 @@
+# Archive and package files
+*.zip
+*.crx
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.swp
+*~
+
+# Logs and scratch
+*.log

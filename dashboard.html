@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#050505">
+  <meta name="description" content="Sutra — a lightweight, beautifully organised bookmark workspace by Devnetra Consultancy.">
+  <meta name="author" content="Devnetra Consultancy">
+  <title>Sutra</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="backdrop-shade" aria-hidden="true"></div>
+  <main class="app-shell">
+    <header class="topbar compact-topbar">
+      <a class="brand" href="#" aria-label="Sutra bookmark launchpad">
+        <span class="brand-mark brand-mark-letter" aria-hidden="true">Su</span>
+        <span class="brand-name">Sutra<span class="brand-dot">.</span><small>BY DEVNETRA CONSULTANCY</small></span>
+      </a>
+      <label class="search-wrap compact-search" for="search-input">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg>
+        <input id="search-input" type="search" placeholder="Search sites…" aria-label="Search bookmarks" autocomplete="off" spellcheck="false">
+        <kbd>Ctrl K</kbd>
+      </label>
+      <div class="top-actions compact-actions">
+        <button class="icon-button" id="theme-btn" title="Toggle light/dark theme" aria-label="Toggle theme"><svg viewBox="0 0 24 24"><path d="M20.5 15.5A8.5 8.5 0 0 1 8.5 3.5 8.5 8.5 0 1 0 20.5 15.5Z"/></svg></button>
+        <button class="button button-quiet compact-icon-button" id="add-category-btn" title="Create group" aria-label="Create group"><svg viewBox="0 0 24 24"><path d="M3 6.5h7l2 2h9v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 11v6m-3-3h6"/></svg></button>
+        <button class="button button-quiet compact-icon-button" id="size-btn" title="Change icon size" aria-label="Change icon size"><svg viewBox="0 0 24 24"><path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4M8 12h8M12 8v8"/></svg></button>
+        <button class="button button-quiet compact-icon-button settings-button" id="settings-btn" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24"><path d="M9.7 2.8h4.6l.55 2.1a7.5 7.5 0 0 1 1.58.92l2.05-.75 2.3 3.98-1.5 1.53c.14.9.14 1.8 0 2.7l1.5 1.53-2.3 3.98-2.05-.75a7.5 7.5 0 0 1-1.58.92l-.55 2.1H9.7l-.55-2.1a7.5 7.5 0 0 1-1.58-.92l-2.05.75-2.3-3.98 1.5-1.53a8 8 0 0 1 0-2.7l-1.5-1.53 2.3-3.98 2.05.75a7.5 7.5 0 0 1 1.58-.92z"/><circle cx="12" cy="12" r="3"/></svg></button>
+      </div>
+    </header>
+
+    <nav class="category-nav sr-only" id="category-nav" aria-label="Bookmark collections"></nav>
+    <div class="sr-only" aria-hidden="true">
+      <span id="bookmark-count">0</span>
+      <p id="section-kicker">YOUR LAUNCHPAD</p>
+      <h2 id="section-title">All bookmarks <span id="visible-count">0</span></h2>
+    </div>
+    <section id="grid-container" class="collection-grid" aria-live="polite"></section>
+    <p id="empty-state" class="empty-state hidden" role="status"><span id="empty-title">No matching sites</span><span id="empty-copy">Try another search term.</span></p>
+  </main>
+
+  <div class="modal-backdrop hidden" id="bookmark-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <form class="modal-card" id="bookmark-form">
+      <div class="modal-head"><div><p class="section-kicker">BOOKMARK DETAILS</p><h2 id="modal-title">Add a bookmark</h2></div><button type="button" class="icon-button close-modal" data-close="bookmark-modal" aria-label="Close">×</button></div>
+      <input type="hidden" id="edit-id">
+      <label class="field-label">Name<input id="bookmark-name" required maxlength="80" placeholder="e.g. Figma"></label>
+      <label class="field-label">Website URL<input id="bookmark-url" required type="text" placeholder="https://example.com" autocomplete="off" spellcheck="false"></label>
+      <label class="field-label">Collection
+        <select id="bookmark-category"></select>
+      </label>
+      <label class="field-label">Short note <span class="optional">OPTIONAL</span><input id="bookmark-note" maxlength="120" placeholder="What do you use this for?"></label>
+      <div class="modal-actions"><button type="submit" class="button button-primary" id="save-bookmark-btn">Save bookmark</button></div>
+      <p class="form-error" id="form-error" role="alert"></p>
+    </form>
+  </div>
+
+  <div class="modal-backdrop hidden" id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="modal-card settings-card">
+      <div class="modal-head"><div><p class="section-kicker">SUTRA WORKSPACE</p><h2 id="settings-title">Settings</h2></div><button type="button" class="icon-button close-modal" data-close="settings-modal" aria-label="Close">×</button></div>
+      <section class="settings-section"><h3>Privacy</h3><p>Your bookmarks, notes, groups, and preferences are stored in Chrome on this device. Sutra does not send your library to Devnetra Consultancy or run analytics or ads.</p><p><a href="privacy-policy.html" target="_blank" rel="noopener noreferrer">Read Sutra's privacy policy</a></p></section>
+      <section class="settings-section"><h3>Launchpad layout</h3><p>Adjust the size of your site icons. The grid adapts to your screen width.</p><label class="field-label">Icon size <input id="icon-size" type="range" min="36" max="88" step="4" value="48"></label><span id="icon-size-label" class="settings-hint">48 px</span>
+        <label class="layout-lock-row"><input id="layout-lock-toggle" type="checkbox"><span><strong>Lock drag &amp; drop</strong><small>When locked, groups and bookmarks cannot be moved by dragging.</small></span></label>
+      </section>
+      <section class="settings-section"><h3>Manage groups</h3><p>Create, rename, or remove groups. Turn on <strong>Hide</strong> to remove a group and its bookmarks from the launchpad and search without deleting them. Turn it off to restore the group.</p><div id="manage-categories" class="manage-categories"></div></section>
+      <section class="settings-section"><h3>Wallpaper</h3><p>Bring a little atmosphere to your workspace. Images are resized before saving to keep things light.</p>
+        <label class="upload-zone" for="bg-upload"><span class="upload-icon">↥</span><strong>Choose a background image</strong><span>JPG, PNG or WebP · Stored locally</span><input type="file" id="bg-upload" accept="image/*"></label>
+        <button class="button button-quiet full-width" id="clear-bg-btn" type="button">Remove wallpaper</button>
+      </section>
+      <section class="settings-section"><h3>Import from Chrome</h3>
+        <p>Copy your existing Chrome bookmarks into Sutra. Chrome folders become Sutra groups where possible. Existing Sutra bookmarks are kept, duplicate URLs are skipped, and Chrome's bookmarks are never changed.</p>
+        <button class="button button-quiet full-width" id="import-chrome-btn" type="button">Import from Chrome</button>
+        <p class="settings-hint">Sutra reads your Chrome bookmark names, URLs, and folder names only after you click Import and confirm.</p>
+      </section>
+      <section class="settings-section"><h3>Backup & import</h3><p>Export your bookmarks and preferences to JSON. Importing JSON adds bookmarks and groups without replacing your current library.</p>
+        <div class="backup-actions"><button class="button button-quiet" id="settings-export-btn" type="button">↓ Export JSON</button><label class="button button-quiet file-button">↑ Import JSON<input type="file" id="import-file" accept=".json,application/json"></label></div>
+        <p class="settings-hint">New groups are appended after existing groups. Duplicate URLs are skipped; current settings are kept.</p><p class="settings-hint">By Devnetra Consultancy · <a href="mailto:devnetraconsultancy@gmail.com">devnetraconsultancy@gmail.com</a></p>
+      </section>
+      <div class="modal-actions"><button class="button button-primary" type="button" data-close="settings-modal">Done</button></div>
+    </div>
+  </div>
+  <input type="file" id="import-file-hidden" accept=".json,application/json" hidden>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="dashboard.js"></script>
+</body>
+</html>

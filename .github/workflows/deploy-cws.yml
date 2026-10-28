@@ -1,0 +1,40 @@
+name: Deploy to Chrome Web Store
+
+on:
+  push:
+    tags:
+      - 'v*' # Trigger automatically when a version tag like v2.11.1 is pushed
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish immediately for review (true) or upload as draft (false)'
+        required: true
+        type: boolean
+        default: true
+
+jobs:
+  build-and-deploy:
+    name: Package and Deploy to Chrome Web Store
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Package extension
+        run: |
+          echo "Packaging extension files into sutra.zip..."
+          zip -r sutra.zip manifest.json dashboard.html dashboard.js style.css default-wallpaper.webp privacy-policy.html icons/
+          echo "Package contents:"
+          unzip -l sutra.zip
+
+      - name: Upload and publish to Chrome Web Store
+        uses: mnao305/chrome-extension-upload@v7.0.0
+        with:
+          file-path: sutra.zip
+          extension-id: ${{ secrets.CHROME_EXTENSION_ID }}
+          publisher-id: ${{ secrets.CHROME_PUBLISHER_ID }}
+          client-id: ${{ secrets.CHROME_CLIENT_ID }}
+          client-secret: ${{ secrets.CHROME_CLIENT_SECRET }}
+          refresh-token: ${{ secrets.CHROME_REFRESH_TOKEN }}
+          publish: ${{ github.event.inputs.publish != 'false' }}
