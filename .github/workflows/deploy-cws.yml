@@ -24,7 +24,7 @@ jobs:
       - name: Package extension
         run: |
           echo "Packaging extension files into sutra.zip..."
-          zip -r sutra.zip manifest.json dashboard.html dashboard.js style.css default-wallpaper.webp privacy-policy.html icons/
+          zip -r sutra.zip manifest.json dashboard.html dashboard.js hot-reload.js style.css default-wallpaper.webp privacy-policy.html icons/
           echo "Package contents:"
           unzip -l sutra.zip
 
