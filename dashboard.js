@@ -282,11 +282,17 @@
         const groupActions = heading.querySelector(".collection-actions");
         groupMenu.addEventListener("click", e => {
           e.stopPropagation();
-          document.querySelectorAll(".collection-actions").forEach(menu => { if (menu !== groupActions) menu.classList.add("hidden"); });
+          document.querySelectorAll(".collection-actions, .tile-actions").forEach(menu => { if (menu !== groupActions) menu.classList.add("hidden"); });
           groupActions.classList.toggle("hidden");
         });
-        heading.querySelector('[data-action="rename-group"]').addEventListener("click", () => renameCategory(groupName));
-        heading.querySelector('[data-action="delete-group"]').addEventListener("click", () => deleteCategory(groupName));
+        heading.querySelector('[data-action="rename-group"]').addEventListener("click", () => {
+          groupActions.classList.add("hidden");
+          renameCategory(groupName);
+        });
+        heading.querySelector('[data-action="delete-group"]').addEventListener("click", () => {
+          groupActions.classList.add("hidden");
+          deleteCategory(groupName);
+        });
         heading.draggable = !state.layoutLocked && !query;
         heading.title = state.layoutLocked ? "Layout is locked" : "Drag this group heading to move the entire group";
         heading.addEventListener("dragstart", e => {
@@ -361,9 +367,18 @@
           openBookmarkModal(item);
         });
 
-        tile.querySelector(".tile-menu").addEventListener("click", e => { e.stopPropagation(); document.querySelectorAll(".tile-actions").forEach(p => { if (p !== tile.querySelector(".tile-actions")) p.classList.add("hidden"); }); tile.querySelector(".tile-actions").classList.toggle("hidden"); });
-        tile.querySelector('[data-action="edit"]').addEventListener("click", () => openBookmarkModal(item));
+        const tileActions = tile.querySelector(".tile-actions");
+        tile.querySelector(".tile-menu").addEventListener("click", e => {
+          e.stopPropagation();
+          document.querySelectorAll(".tile-actions, .collection-actions").forEach(p => { if (p !== tileActions) p.classList.add("hidden"); });
+          tileActions.classList.toggle("hidden");
+        });
+        tile.querySelector('[data-action="edit"]').addEventListener("click", () => {
+          tileActions.classList.add("hidden");
+          openBookmarkModal(item);
+        });
         tile.querySelector('[data-action="move"]').addEventListener("click", async () => {
+          tileActions.classList.add("hidden");
           refreshCategories();
           const choices = categories.filter(c => c !== "All bookmarks");
           const choice = prompt(`Move “${item.name}” to which group?\n\nAvailable groups:\n${choices.join(" · ")}`, item.category);
@@ -373,6 +388,7 @@
           else showToast("Choose an existing group name");
         });
         tile.querySelector('[data-action="delete"]').addEventListener("click", async () => {
+          tileActions.classList.add("hidden");
           if (!confirm(`Delete “${item.name}”?`)) return;
           state.bookmarks = state.bookmarks.filter(b => b.id !== item.id);
           renderAll();
@@ -485,6 +501,11 @@
   function renameCategory(name){const next=prompt("Rename group:",name);if(!next||!next.trim())return;const clean=next.trim().slice(0,40);if(clean.toLowerCase()!==name.toLowerCase()&&categories.some(c=>c.toLowerCase()===clean.toLowerCase())){showToast("Group already exists");return;}if(clean===name)return;const idx=defaultCategories.indexOf(name);if(idx>=0)defaultCategories[idx]=clean;else state.customCategories=state.customCategories.map(c=>c===name?clean:c);state.groupOrder=(state.groupOrder||[]).map(c=>c===name?clean:c);state.hiddenCategories=(state.hiddenCategories||[]).map(c=>c===name?clean:c);state.bookmarks.forEach(b=>{if(b.category===name)b.category=clean});if(activeCategory===name)activeCategory=clean;refreshCategories();orderedGroupNames();renderAll();void persist();showToast("Group renamed")}
   async function deleteCategory(name){
     if (!categories.includes(name) || name === "All bookmarks") return;
+    const nonAllCategories = categories.filter(c => c !== "All bookmarks");
+    if (nonAllCategories.length <= 1) {
+      showToast("Cannot delete the only remaining group.");
+      return;
+    }
     const bookmarkCount = state.bookmarks.filter(bookmark => bookmark.category === name).length;
     const impact = bookmarkCount
       ? ` This will permanently remove ${bookmarkCount} bookmark(s) from Sutra.`
@@ -522,8 +543,8 @@
       if (event.dataTransfer && event.dataTransfer.types && event.dataTransfer.types.length)
         document.body.classList.add("drag-in-progress");
     });
-    document.addEventListener("drop", () => document.body.classList.remove("drag-in-progress"), true);
-    document.addEventListener("dragend", () => document.body.classList.remove("drag-in-progress"), true);
+    document.addEventListener("drop", () => document.body.classList.remove("drag-in-progress"));
+    document.addEventListener("dragend", () => document.body.classList.remove("drag-in-progress"));
     document.addEventListener("dragleave", event => {
       if (event.clientX <= 0 || event.clientY <= 0 || event.clientX >= window.innerWidth || event.clientY >= window.innerHeight) {
         document.body.classList.remove("drag-in-progress");
@@ -581,31 +602,55 @@
   });
   $("#bookmark-name").addEventListener("input", () => { $("#bookmark-name").dataset.userEdited = "true"; });
   function createBookmarkFromDroppedUrl(rawUrl, category) {
-    const url = validUrl(rawUrl);
+    let raw = String(rawUrl || "").trim();
+    if (raw && !/^[a-z][a-z\d+.-]*:/i.test(raw)) raw = "https://" + raw;
+    const url = validUrl(raw);
     if (!url) return false;
     const existing = state.bookmarks.find(b => b.url === url);
     if (existing) {
-      const oldCategory = existing.category;
-      if (category && categories.includes(category) && category !== "All bookmarks") existing.category = category;
-      renderAll();
-      void persist();
-      showToast(oldCategory === existing.category ? "Bookmark already exists" : `Moved existing bookmark to ${category}`);
+      if (category && categories.includes(category) && category !== "All bookmarks") {
+        void moveBookmarkToGroup(existing.id, category);
+      } else {
+        showToast("Bookmark already exists");
+      }
       return true;
     }
-    const name = defaultBookmarkName(url).slice(0,80);
-    state.bookmarks.push({ id: createId(), name, url, category, note: "", createdAt: Date.now() });
+    const name = defaultBookmarkName(url).slice(0, 80);
+    const targetCategory = (category && categories.includes(category) && category !== "All bookmarks")
+      ? category
+      : (categories.find(c => c !== "All bookmarks") || "General");
+    state.bookmarks.push({ id: createId(), name, url, category: targetCategory, note: "", createdAt: Date.now() });
     renderAll();
     void persist();
     showToast(`Added ${name}`);
     return true;
   }
   function getDroppedUrl(dataTransfer) {
-    const uriList = dataTransfer.getData("text/uri-list").split(/\r?\n/).find(line => line && !line.startsWith("#"));
-    if (uriList && validUrl(uriList.trim())) return validUrl(uriList.trim());
-    const plain = dataTransfer.getData("text/plain").trim();
-    if (validUrl(plain)) return validUrl(plain);
-    const match = plain.match(/https?:\/\/[^\s<>"']+/i);
-    return match ? validUrl(match[0].replace(/[),.;]+$/, "")) : null;
+    try {
+      const uriList = (dataTransfer.getData("text/uri-list") || "")
+        .split(/\r?\n/)
+        .find(line => line && !line.startsWith("#"));
+      if (uriList && validUrl(uriList.trim())) return validUrl(uriList.trim());
+
+      const plain = (dataTransfer.getData("text/plain") || "").trim();
+      if (validUrl(plain)) return validUrl(plain);
+      const match = plain.match(/https?:\/\/[^\s<>"']+/i);
+      if (match) {
+        const cleaned = validUrl(match[0].replace(/[),.;]+$/, ""));
+        if (cleaned) return cleaned;
+      }
+      if (plain && !/^[a-z][a-z\d+.-]*:/i.test(plain) && /^[\w-]+(\.[\w-]+)+/.test(plain)) {
+        const normalized = validUrl("https://" + plain);
+        if (normalized) return normalized;
+      }
+
+      const html = dataTransfer.getData("text/html") || "";
+      if (html) {
+        const hrefMatch = html.match(/href=["'](https?:\/\/[^"']+)["']/i);
+        if (hrefMatch && validUrl(hrefMatch[1])) return validUrl(hrefMatch[1]);
+      }
+    } catch {}
+    return null;
   }
 
   $("#bookmark-form").addEventListener("submit", async e => {
@@ -627,10 +672,9 @@
     void persist();
     showToast(existing ? "Bookmark updated" : "Bookmark added");
 
-    // The bookmark editor remains open until the user explicitly clicks X.
-    // After adding a new bookmark, clear the fields so several links can be
-    // entered consecutively without dismissing the dialog.
-    if (!existing) {
+    if (existing) {
+      closeModal("bookmark-modal");
+    } else {
       const savedCategory = bookmark.category;
       $("#bookmark-form").reset();
       $("#edit-id").value = "";
@@ -762,7 +806,7 @@
               state.customCategories.push(groupName);
               refreshCategories();
             } else {
-              groupName = "Tools";
+              groupName = categories.find(c => c !== "All bookmarks") || "General";
             }
           }
         }
@@ -870,12 +914,13 @@
         }
         existingUrls.add(url);
         const rawCategory = cleanGroupName(item.category);
+        const fallbackGroup = categories.find(c => c !== "All bookmarks") || defaultCategories[0] || "General";
         const category = rawCategory
-          ? (groupNameMap.get(rawCategory.toLowerCase()) || findGroup(rawCategory) || "Tools")
-          : "Tools";
+          ? (groupNameMap.get(rawCategory.toLowerCase()) || findGroup(rawCategory) || fallbackGroup)
+          : fallbackGroup;
         cleaned.push({
           id: createId(),
-          name: item.name.trim().slice(0, 80) || new URL(url).hostname,
+          name: item.name.trim().slice(0, 80) || defaultBookmarkName(url).slice(0, 80),
           url,
           category,
           note: typeof item.note === "string" ? item.note.slice(0, 120) : "",
@@ -906,7 +951,6 @@
       showToast(err.message || "Could not import this file.");
     } finally {
       $("#import-file").value = "";
-      $("#import-file-hidden").value = "";
     }
   }
   async function processWallpaper(file) {
@@ -950,13 +994,30 @@
     }
     $("#settings-btn").addEventListener("click", () => { renderManageCategories(); $("#icon-size").value=state.iconSize||48; $("#icon-size-label").textContent=`${state.iconSize||48} px`; $("#layout-lock-toggle").checked=!!state.layoutLocked; openModal("settings-modal"); });
     $("#add-category-btn").addEventListener("click", async()=>{const name=prompt("New group name:");if(!name||!name.trim())return;const clean=name.trim().slice(0,40);if(categories.some(c=>c.toLowerCase()===clean.toLowerCase())){showToast("Group already exists");return;}state.customCategories.push(clean);refreshCategories();state.groupOrder=orderedGroupNames();activeCategory="All bookmarks";renderAll();void persist();showToast("Group created")});
-    $("#size-btn").addEventListener("click",()=>{renderManageCategories();$("#icon-size").value=state.iconSize||48;$("#icon-size-label").textContent=`${state.iconSize||48} px`;$("#layout-lock-toggle").checked=!!state.layoutLocked;openModal("settings-modal")});
-    $("#icon-size").addEventListener("input",e=>{state.iconSize=Number(e.target.value);$("#icon-size-label").textContent=`${state.iconSize} px`;document.querySelectorAll(".bookmark-tile,.bookmark-grid,.add-bookmark-tile").forEach(t=>t.style.setProperty("--icon-size",`${state.iconSize}px`));void persist()});
+    $("#size-btn").addEventListener("click", () => {
+      renderManageCategories();
+      $("#icon-size").value = state.iconSize || 48;
+      $("#icon-size-label").textContent = `${state.iconSize || 48} px`;
+      $("#layout-lock-toggle").checked = !!state.layoutLocked;
+      openModal("settings-modal");
+      setTimeout(() => $("#icon-size").focus(), 50);
+    });
+    let iconSizeDebounce = null;
+    $("#icon-size").addEventListener("input", e => {
+      state.iconSize = Number(e.target.value);
+      $("#icon-size-label").textContent = `${state.iconSize} px`;
+      document.querySelectorAll(".bookmark-tile,.bookmark-grid,.add-bookmark-tile").forEach(t => t.style.setProperty("--icon-size", `${state.iconSize}px`));
+      clearTimeout(iconSizeDebounce);
+      iconSizeDebounce = setTimeout(() => { void persist(); }, 300);
+    });
+    $("#icon-size").addEventListener("change", () => {
+      clearTimeout(iconSizeDebounce);
+      void persist();
+    });
     $("#layout-lock-toggle").addEventListener("change", e=>{state.layoutLocked=!!e.target.checked;renderAll();void persist();showToast(state.layoutLocked?"Drag & drop locked":"Drag & drop enabled")});
     $("#import-chrome-btn").addEventListener("click", importFromChrome);
     $("#settings-export-btn").addEventListener("click", exportBackup);
     $("#import-file").addEventListener("change", e => importBackup(e.target.files[0]));
-    $("#import-file-hidden").addEventListener("change", e => importBackup(e.target.files[0]));
     $("#bg-upload").addEventListener("change", e => processWallpaper(e.target.files[0]));
     $("#clear-bg-btn").addEventListener("click", () => { state.backgroundImage = ""; applyPreferences(); void persist(); showToast("Wallpaper removed"); });
     $("#theme-btn").addEventListener("click", () => { state.theme = state.theme === "dark" ? "light" : "dark"; applyPreferences(); void persist(); });
@@ -974,8 +1035,8 @@
       }
     }));
     document.addEventListener("click", e => {
-      if (!e.target.closest(".bookmark-tile")) document.querySelectorAll(".tile-actions").forEach(p => p.classList.add("hidden"));
-      if (!e.target.closest(".collection-heading")) document.querySelectorAll(".collection-actions").forEach(p => p.classList.add("hidden"));
+      if (!e.target.closest(".tile-menu, .tile-actions")) document.querySelectorAll(".tile-actions").forEach(p => p.classList.add("hidden"));
+      if (!e.target.closest(".collection-manage, .collection-actions")) document.querySelectorAll(".collection-actions").forEach(p => p.classList.add("hidden"));
     });
     document.addEventListener("keydown", e => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); $("#search-input").focus(); }
@@ -997,6 +1058,23 @@
         }
       }
       if (e.key === "Escape") {
+        const openActions = document.querySelectorAll(".tile-actions:not(.hidden), .collection-actions:not(.hidden)");
+        if (openActions.length) {
+          openActions.forEach(p => p.classList.add("hidden"));
+          return;
+        }
+
+        const searchInput = $("#search-input");
+        if (!hasOpenModal() && document.activeElement === searchInput) {
+          if (searchInput.value) {
+            searchInput.value = "";
+            renderGrid();
+          } else {
+            searchInput.blur();
+          }
+          return;
+        }
+
         const bookmarkModal = $("#bookmark-modal");
         if (bookmarkModal && !bookmarkModal.classList.contains("hidden")) {
           const hasUnsaved = $("#bookmark-name").value.trim() || $("#bookmark-url").value.trim();
@@ -1044,6 +1122,10 @@
     }
     state.customCategories = [...new Set(state.customCategories)].slice(0, 100);
     refreshCategories();
+    if (categories.filter(c => c !== "All bookmarks").length === 0) {
+      defaultCategories.push("General");
+      refreshCategories();
+    }
 
     state.backgroundImage = typeof data.backgroundImage === "string" ? data.backgroundImage : "";
     state.theme = data.theme === "light" ? "light" : "dark";

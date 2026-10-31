@@ -1,90 +1,40 @@
 // Sutra Development Hot-Reload
 // Automatically reloads the extension and active launchpad tab when you save any file.
-// Automatically disables itself in production/packaged builds.
+// Automatically disables itself in production/packaged Web Store builds.
 
 (() => {
   "use strict";
 
   const POLL_INTERVAL_MS = 1000;
   let isWatching = false;
+  let isReloading = false;
 
-  const readAllEntries = (dir) =>
-    new Promise((resolve) => {
-      const reader = dir.createReader();
-      const allEntries = [];
-      const readBatch = () => {
-        reader.readEntries(
-          (entries) => {
-            if (!entries.length) {
-              resolve(allEntries);
-            } else {
-              allEntries.push(...entries);
-              readBatch();
-            }
-          },
-          () => resolve(allEntries)
-        );
-      };
-      readBatch();
-    });
-
-  const filesInDirectory = async (dir) => {
-    const entries = await readAllEntries(dir);
-    const files = [];
-    for (const entry of entries) {
-      if (entry.name.startsWith(".") || entry.name.endsWith(".zip")) continue;
-      if (entry.isDirectory) {
-        const subFiles = await filesInDirectory(entry);
-        files.push(...subFiles);
-      } else {
-        const file = await new Promise((res) => entry.file(res, () => res(null)));
-        if (file) files.push(file);
-      }
+  // Fast 32-bit hash (djb2) to detect content changes across full files
+  const hashString = (str) => {
+    let hash = 5381;
+    for (let i = 0; i < str.length; i++) {
+      hash = ((hash << 5) + hash) + str.charCodeAt(i);
+      hash |= 0;
     }
-    return files;
-  };
-
-  const getDirectoryFingerprint = async (dir) => {
-    try {
-      const files = await filesInDirectory(dir);
-      return files
-        .map((f) => `${f.name}:${f.lastModified}:${f.size}`)
-        .sort()
-        .join("|");
-    } catch {
-      return null;
-    }
+    return hash;
   };
 
   const triggerReload = () => {
+    if (isReloading) return;
+    isReloading = true;
     console.log("%c[Sutra Live-Reload]%c Changes detected! Reloading launchpad...", "color: #b9f27c; font-weight: bold;", "color: inherit;");
     try {
       if (chrome.runtime && typeof chrome.runtime.reload === "function") {
         chrome.runtime.reload();
+        return;
       }
     } catch {}
     window.location.reload();
   };
 
-  const startFileSystemWatcher = (dir) => {
+  const startWatcher = () => {
+    const watchedFiles = ["dashboard.js", "style.css", "dashboard.html", "manifest.json", "hot-reload.js"];
     let lastFingerprint = null;
-    const check = async () => {
-      const current = await getDirectoryFingerprint(dir);
-      if (current) {
-        if (lastFingerprint && lastFingerprint !== current) {
-          triggerReload();
-          return;
-        }
-        lastFingerprint = current;
-      }
-      setTimeout(check, POLL_INTERVAL_MS);
-    };
-    check();
-  };
-
-  const startFetchFallbackWatcher = () => {
-    const watchedFiles = ["dashboard.js", "style.css", "dashboard.html", "manifest.json"];
-    let lastHashes = null;
 
     const check = async () => {
       try {
@@ -92,15 +42,15 @@
           watchedFiles.map(async (file) => {
             const res = await fetch(`${chrome.runtime.getURL(file)}?_t=${Date.now()}`, { cache: "no-store" });
             const text = await res.text();
-            return `${file}:${text.length}:${text.slice(0, 80)}`;
+            return `${file}:${text.length}:${hashString(text)}`;
           })
         );
-        const current = results.join("|");
-        if (lastHashes && lastHashes !== current) {
+        const currentFingerprint = results.join("|");
+        if (lastFingerprint && lastFingerprint !== currentFingerprint) {
           triggerReload();
           return;
         }
-        lastHashes = current;
+        lastFingerprint = currentFingerprint;
       } catch {}
       setTimeout(check, POLL_INTERVAL_MS);
     };
@@ -111,28 +61,16 @@
     if (isWatching) return;
     isWatching = true;
 
-    const beginWatching = () => {
-      console.log("%c[Sutra Live-Reload]%c Active in developer mode.", "color: #b9f27c; font-weight: bold;", "color: inherit;");
-      if (chrome.runtime && typeof chrome.runtime.getPackageDirectoryEntry === "function") {
-        try {
-          chrome.runtime.getPackageDirectoryEntry((dir) => {
-            if (dir) startFileSystemWatcher(dir);
-            else startFetchFallbackWatcher();
-          });
-          return;
-        } catch {}
-      }
-      startFetchFallbackWatcher();
-    };
+    // Unpacked extensions in Developer Mode do not have 'update_url' in their manifest.
+    // Chrome Web Store installs always have 'update_url' injected by Chrome.
+    const manifest = (chrome.runtime && typeof chrome.runtime.getManifest === "function")
+      ? chrome.runtime.getManifest()
+      : {};
+    const isDevelopment = !("update_url" in manifest);
 
-    if (chrome.management && typeof chrome.management.getSelf === "function") {
-      chrome.management.getSelf((self) => {
-        if (self.installType === "development") {
-          beginWatching();
-        }
-      });
-    } else {
-      beginWatching();
+    if (isDevelopment) {
+      console.log("%c[Sutra Live-Reload]%c Active in developer mode.", "color: #b9f27c; font-weight: bold;", "color: inherit;");
+      startWatcher();
     }
   };
 
